@@ -1,22 +1,3 @@
-// We'll try to import the library, but also provide a fallback
-let pipeline;
-try {
-  // Try to import dynamically when the script runs
-  import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0/dist/transformers.min.js')
-    .then(module => {
-      pipeline = module.pipeline;
-      console.log("Transformers library loaded successfully through ES module");
-      // Initialize once the library is loaded
-      initWhisper();
-    })
-    .catch(err => {
-      console.error("Failed to import Transformers module:", err);
-      showError("Failed to load Whisper transcription engine. Try a different browser or check console for details.");
-    });
-} catch (e) {
-  console.error("Error in import statement:", e);
-}
-
 // Elements
 const startMicrophoneBtn = document.getElementById('startMicrophone');
 const startSystemAudioBtn = document.getElementById('startSystemAudio');
@@ -42,8 +23,6 @@ let analyser;
 let audioQueue = [];
 let processingAudio = false;
 let audioBuffer = [];
-let transformersLoaded = false;
-let transformersPipeline = null;
 
 // Configure Transformers.js to use the Hugging Face Hub directly
 function configureTransformers() {
@@ -60,85 +39,41 @@ function configureTransformers() {
     return false;
 }
 
-// Check for Transformers availability and set up pipeline
-function checkTransformers() {
-    updateStatus('Initializing transcription engine...');
-    
-    // Check if Transformers is available globally (from script tag)
-    if (typeof Transformers !== 'undefined') {
-        console.log("Using globally loaded Transformers library");
-        transformersLoaded = true;
-        
-        // Configure before using
-        configureTransformers();
-        
-        transformersPipeline = Transformers.pipeline;
-        initWhisper();
-        return;
-    }
-    
-    console.log("Transformers not available yet, will retry...");
-    
-    // If not immediately available, check again in a moment
-    setTimeout(function() {
-        if (typeof Transformers !== 'undefined') {
-            console.log("Transformers found on retry");
-            transformersLoaded = true;
-            transformersPipeline = Transformers.pipeline;
-            initWhisper();
-        } else {
-            // Final fallback - try to load it one more time with a different CDN
-            const script = document.createElement('script');
-            script.src = "https://cdn.jsdelivr.net/npm/@xenova/transformers@latest/dist/transformers.min.js";
-            script.onload = function() {
-                if (typeof Transformers !== 'undefined') {
-                    console.log("Transformers loaded via fallback script");
-                    transformersLoaded = true;
-                    transformersPipeline = Transformers.pipeline;
-                    initWhisper();
-                } else {
-                    showError("Failed to load transcription engine. Please try a different browser (Chrome recommended) or check your internet connection.");
-                    updateStatus("Error: Transcription engine not available");
-                }
-            };
-            script.onerror = function() {
-                showError("Failed to load transcription library. Please check your internet connection and try again.");
-                updateStatus("Error: Unable to load required resources");
-            };
-            document.head.appendChild(script);
-        }
-    }, 2000);
-}
-
-// Initialize Whisper model using the imported pipeline
+// Initialize Whisper model
 async function initWhisper() {
     try {
         updateStatus('Loading Whisper model...');
         
-        if (!transformersLoaded || !transformersPipeline) {
-            throw new Error("Transformers library not loaded. Please wait or reload the page.");
+        if (typeof Transformers === 'undefined') {
+            throw new Error("Transformers library not loaded. Please refresh the page.");
         }
         
-        // Make sure we've configured the library
+        // Configure the library
         configureTransformers();
         
         // Add progress indicator for model loading
         const startTime = Date.now();
         updateStatus('Downloading Whisper model (this may take a minute)...');
         
-        // Download progress handler
+        // Create a progress handler
         const progressCallback = (progress) => {
             if (progress.status === 'progress') {
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                updateStatus(`Downloading model: ${Math.round(progress.loaded / 1024 / 1024)}MB (${elapsed}s elapsed)`);
+                const downloadMB = Math.round(progress.loaded / 1024 / 1024);
+                updateStatus(`Downloading model components: ${downloadMB}MB (${elapsed}s elapsed)`);
             }
         };
         
-        whisperProcessor = await transformersPipeline('automatic-speech-recognition', currentModel, {
-            quantized: true,  // Smaller file size
-            revision: 'main',
-            progress_callback: progressCallback
-        });
+        // Use the global Transformers object
+        whisperProcessor = await Transformers.pipeline(
+            'automatic-speech-recognition', 
+            currentModel, 
+            {
+                quantized: true,
+                revision: 'main',
+                progress_callback: progressCallback
+            }
+        );
         
         updateStatus(`Whisper model ${currentModel.split('/')[1]} loaded. Ready to transcribe.`);
         clearError();
@@ -172,11 +107,17 @@ async function handleModelChange() {
         updateStatus(`Loading ${currentModel.split('/')[1]} model...`);
         
         try {
-            if (!transformersLoaded || !transformersPipeline) {
+            if (typeof Transformers === 'undefined') {
                 throw new Error('Transformers library not loaded');
             }
             
-            whisperProcessor = await transformersPipeline('automatic-speech-recognition', currentModel);
+            // Use the global Transformers object
+            whisperProcessor = await Transformers.pipeline(
+                'automatic-speech-recognition', 
+                currentModel,
+                { quantized: true }
+            );
+            
             updateStatus(`Model changed to ${currentModel.split('/')[1]}. Ready to transcribe.`);
             clearError();
         } catch (error) {
@@ -291,7 +232,7 @@ function handleTranscriptionResult(result) {
 
 // Start microphone recording
 async function startMicrophoneRecording() {
-    if (!transformersLoaded || !whisperProcessor) {
+    if (!whisperProcessor) {
         showError("Transcription engine is not ready yet. Please wait for initialization to complete.");
         return;
     }
@@ -338,7 +279,7 @@ async function startMicrophoneRecording() {
 
 // Start system audio recording (when supported)
 async function startSystemAudioRecording() {
-    if (!transformersLoaded || !whisperProcessor) {
+    if (!whisperProcessor) {
         showError("Transcription engine is not ready yet. Please wait for initialization to complete.");
         return;
     }
@@ -557,22 +498,18 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('Loading transcription engine...');
     }
     
-    // IMPORTANT: Remove all dynamic ES module imports
-    // Only use the global Transformers object loaded from the script tag
-    
-    // Wait a bit to make sure the library is loaded
+    // Give the page a moment to fully load, then check for Transformers
     setTimeout(() => {
         if (typeof Transformers !== 'undefined') {
-            console.log("Transformers library detected. Initializing whisper...");
+            console.log("Transformers library detected. Initializing Whisper...");
             initWhisper();
         } else {
-            console.error("Transformers library not available after waiting");
+            console.error("Transformers library not available");
             showError("Failed to load speech recognition library. Please try using Chrome and refreshing the page.");
             updateStatus("Error: Transcription engine unavailable");
         }
-    }, 1500);
+    }, 1000);
 });
 
-// The ONNX warnings about "Removing initializer" are normal - they are just
-// the model optimizer cleaning up unused parts of the neural network and
-// can be safely ignored.
+// Note: The ONNX warnings you're seeing about "Removing initializer" are normal 
+// optimization messages from the neural network engine and don't affect functionality.
