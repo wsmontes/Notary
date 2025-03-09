@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Load Whisper.js from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+    <!-- Load transformers library as a module to fix the export error -->
+    <script type="module">
+        import 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0/dist/transformers.min.js';
+        window.isTransformersLoaded = true;
+    </script>
 </head>
 <body>
     <div class="container">
@@ -32,6 +35,9 @@
                 <input type="checkbox" id="filterNonSpeech">
                 <label for="filterNonSpeech">Hide music and sound effects (for display only)</label>
             </div>
+            <div class="note">
+                <strong>Important:</strong> This app must be run from a local web server. Use "Live Server" extension in VS Code or run <code>python -m http.server</code> in the terminal.
+            </div>
         </div>
         
         <div class="transcription-container">
@@ -44,9 +50,10 @@
 
         <div class="status">
             <p id="status-message">Ready to transcribe.</p>
+            <p id="error-message" class="error-message"></p>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js" type="module"></script>
 </body>
 </html>

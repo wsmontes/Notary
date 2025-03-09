@@ -104,3 +104,26 @@ textarea#transcription {
     font-style: italic;
     color: #666;
 }
+
+.note {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    color: #856404;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.note code {
+    background-color: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+.error-message {
+    color: #d32f2f;
+    font-weight: bold;
+    margin-top: 10px;
+}
