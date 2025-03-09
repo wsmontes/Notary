@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Load transformers in UMD format instead of as a module -->
-    <script src="https://unpkg.com/@xenova/transformers"></script>
+    <!-- Load the Transformers library the right way for GitHub Pages -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+    <script>
+        // Flag to check if library loaded successfully
+        window.transformersLoaded = typeof Transformers !== 'undefined';
+    </script>
 </head>
 <body>
     <div class="container">

@@ -18,7 +18,7 @@ let audioContext;
 let isRecording = false;
 let rawTranscriptionBuffer = '';
 let filteredTranscriptionBuffer = '';
-let currentModel = modelSelect.value;
+let currentModel = modelSelect ? modelSelect.value : 'Xenova/whisper-small.en';
 let whisperProcessor = null;
 let audioProcessor;
 let microphoneStream;
@@ -38,10 +38,9 @@ async function initWhisper() {
         updateStatus('Loading Whisper model...');
         
         if (!isTransformersAvailable()) {
-            throw new Error('Transformers library not loaded. Try a different browser or check your internet connection.');
+            throw new Error('Transformers library not loaded. This may happen if GitHub Pages is blocking the script. Try using Chrome and ensure you\'re accessing via HTTPS.');
         }
         
-        // Use the UMD version of transformers library
         const { pipeline } = window.Transformers;
         
         whisperProcessor = await pipeline('automatic-speech-recognition', currentModel, {
@@ -52,24 +51,24 @@ async function initWhisper() {
         updateStatus(`Whisper model ${currentModel.split('/')[1]} loaded. Ready to transcribe.`);
     } catch (error) {
         updateStatus('Error loading Whisper model.');
-        showError(`${error.message}. Make sure you're using a modern browser and running from a local server.`);
+        showError(`${error.message}. GitHub Pages requires HTTPS and may have other restrictions.`);
         console.error('Error loading Whisper model:', error);
     }
 }
 
 // Update status message
 function updateStatus(message) {
-    statusMessage.textContent = message;
+    if (statusMessage) statusMessage.textContent = message;
 }
 
 // Show error message
 function showError(message) {
-    errorMessage.textContent = message;
+    if (errorMessage) errorMessage.textContent = message;
 }
 
 // Clear error message
 function clearError() {
-    errorMessage.textContent = '';
+    if (errorMessage) errorMessage.textContent = '';
 }
 
 // Handle model change
@@ -84,7 +83,6 @@ async function handleModelChange() {
                 throw new Error('Transformers library not loaded');
             }
             
-            // Use the UMD version of transformers library
             const { pipeline } = window.Transformers;
             
             whisperProcessor = await pipeline('automatic-speech-recognition', currentModel);
@@ -208,6 +206,11 @@ async function startMicrophoneRecording() {
         // Initialize audio context if needed
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // GitHub Pages requires user interaction before audio context can start
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
         }
         
         clearError();
@@ -225,8 +228,14 @@ async function startMicrophoneRecording() {
         setupAudioProcessing(stream);
         updateStatus('Recording and transcribing from microphone...');
     } catch (error) {
-        updateStatus('Error accessing microphone.');
-        showError(error.message);
+        // Specific handling for GitHub Pages common issues
+        if (error.name === 'NotAllowedError') {
+            updateStatus('Microphone access denied.');
+            showError('Please allow microphone access in your browser. On GitHub Pages, this requires HTTPS.');
+        } else {
+            updateStatus('Error accessing microphone.');
+            showError(error.message);
+        }
         console.error('Error accessing microphone:', error);
     }
 }
@@ -249,6 +258,11 @@ async function startSystemAudioRecording() {
         // Initialize audio context if needed
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // GitHub Pages requires user interaction before audio context can start
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
         }
         
         // Request screen sharing with audio
@@ -279,7 +293,7 @@ async function startSystemAudioRecording() {
         // Handle permission denied specifically
         if (error.name === 'NotAllowedError') {
             updateStatus('Permission to capture system audio was denied.');
-            showError('You must allow access to continue. Please try again.');
+            showError('You must allow access to continue. On GitHub Pages, this requires HTTPS.');
         } else {
             updateStatus('Error capturing system audio.');
             showError(error.message);
@@ -418,26 +432,28 @@ function clearTranscription() {
 }
 
 // Event listeners
-startMicrophoneBtn.addEventListener('click', startMicrophoneRecording);
-startSystemAudioBtn.addEventListener('click', startSystemAudioRecording);
-stopAudioBtn.addEventListener('click', stopRecording);
-clearBtn.addEventListener('click', clearTranscription);
-modelSelect.addEventListener('change', handleModelChange);
-filterNonSpeechCheckbox.addEventListener('change', updateTranscriptionDisplay);
+if (startMicrophoneBtn) startMicrophoneBtn.addEventListener('click', startMicrophoneRecording);
+if (startSystemAudioBtn) startSystemAudioBtn.addEventListener('click', startSystemAudioRecording);
+if (stopAudioBtn) stopAudioBtn.addEventListener('click', stopRecording);
+if (clearBtn) clearBtn.addEventListener('click', clearTranscription);
+if (modelSelect) modelSelect.addEventListener('change', handleModelChange);
+if (filterNonSpeechCheckbox) filterNonSpeechCheckbox.addEventListener('change', updateTranscriptionDisplay);
+
+// Detect if running on GitHub Pages
+const isGitHubPages = window.location.hostname.includes('github.io');
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Make sure any existing whisper-worker.js file is not being referenced
-    if (window.Worker) {
-        // Reset any existing workers that might be causing errors
-        const workers = window.performance.getEntriesByType('resource')
-            .filter(resource => resource.name.includes('whisper-worker.js'));
-        
-        if (workers.length > 0) {
-            console.warn('Found references to whisper-worker.js. This file should be deleted.');
+    // Add GitHub Pages specific information
+    if (isGitHubPages) {
+        updateStatus('Running on GitHub Pages. Make sure to allow permissions when prompted.');
+        const note = document.querySelector('.note');
+        if (note) {
+            note.innerHTML = '<strong>GitHub Pages Notice:</strong> For microphone access and audio processing to work properly, ' +
+                'you must access this page via HTTPS and grant the necessary permissions when prompted.';
         }
     }
     
     // Initialize Whisper
-    initWhisper();
+    setTimeout(initWhisper, 1000); // Give a bit of time for the transformers library to load on GitHub Pages
 });
