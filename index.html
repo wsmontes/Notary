@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Load transformers in UMD format -->
-    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers"></script>
+    <!-- No script tags here - we'll import everything in the JavaScript module -->
 </head>
 <body>
     <div class="container">
@@ -51,6 +50,7 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Load script as a module to allow import statements -->
+    <script type="module" src="script.js"></script>
 </body>
 </html>
