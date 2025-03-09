@@ -45,6 +45,20 @@ let audioBuffer = [];
 let transformersLoaded = false;
 let transformersPipeline = null;
 
+// Configure Transformers.js to use the proper model repository
+function configureTransformers() {
+    if (typeof Transformers !== 'undefined' && Transformers.env) {
+        // Set the base URL for model loading
+        Transformers.env.localModelPath = undefined; // Don't try to load locally
+        Transformers.env.allowRemoteModels = true;   // Allow remote model loading
+        Transformers.env.useCacheFirst = false;      // Don't prioritize potentially missing files
+        
+        console.log("Configured Transformers.js for remote model loading");
+        return true;
+    }
+    return false;
+}
+
 // Check for Transformers availability and set up pipeline
 function checkTransformers() {
     updateStatus('Initializing transcription engine...');
@@ -53,6 +67,10 @@ function checkTransformers() {
     if (typeof Transformers !== 'undefined') {
         console.log("Using globally loaded Transformers library");
         transformersLoaded = true;
+        
+        // Configure before using
+        configureTransformers();
+        
         transformersPipeline = Transformers.pipeline;
         initWhisper();
         return;
@@ -100,15 +118,32 @@ async function initWhisper() {
             throw new Error("Transformers library not loaded. Please wait or reload the page.");
         }
         
+        // Make sure we've configured the library
+        configureTransformers();
+        
+        // Add progress indicator for model loading
+        const startTime = Date.now();
+        updateStatus('Downloading Whisper model (this may take a minute)...');
+        
+        // Download progress handler
+        const progressCallback = (progress) => {
+            if (progress.status === 'progress') {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                updateStatus(`Downloading model: ${Math.round(progress.loaded / 1024 / 1024)}MB (${elapsed}s elapsed)`);
+            }
+        };
+        
         whisperProcessor = await transformersPipeline('automatic-speech-recognition', currentModel, {
-            quantized: false,
-            revision: 'main'
+            quantized: true,  // Smaller file size
+            revision: 'main',
+            progress_callback: progressCallback
         });
         
         updateStatus(`Whisper model ${currentModel.split('/')[1]} loaded. Ready to transcribe.`);
+        clearError();
     } catch (error) {
         updateStatus('Error loading Whisper model.');
-        showError(`${error.message} Try using Chrome and ensure you're on a secure connection.`);
+        showError(`${error.message}. Check your internet connection and try again.`);
         console.error('Error loading Whisper model:', error);
     }
 }
@@ -514,12 +549,21 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('Running on GitHub Pages. Initializing transcription engine...');
         const note = document.querySelector('.note');
         if (note) {
-            note.innerHTML = '<strong>GitHub Pages Notice:</strong> For microphone access and audio processing to work properly, ' +
-                'you must access this page via HTTPS and grant the necessary permissions when prompted.';
+            note.innerHTML = '<strong>GitHub Pages Notice:</strong> First-time use requires downloading the model files (~150MB). ' +
+                'Please be patient during the initial setup.';
         }
     } else {
         updateStatus('Loading transcription engine...');
     }
     
-    // The initialization will happen after the library loads (in the import's then() callback)
+    // Remove the ES module import approach
+    if (typeof Transformers !== 'undefined') {
+        transformersLoaded = true;
+        transformersPipeline = Transformers.pipeline;
+        configureTransformers();
+        setTimeout(initWhisper, 500); // Small delay to ensure DOM is ready
+    } else {
+        // Fall back to checking transformers availability
+        setTimeout(checkTransformers, 1000);
+    }
 });
