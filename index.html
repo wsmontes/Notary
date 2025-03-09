@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Audio Transcription</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Load Whisper.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-Time Audio Transcription</h1>
+        
+        <div class="controls">
+            <button id="startMicrophone" class="btn">Start Microphone</button>
+            <button id="startSystemAudio" class="btn">Start System Audio</button>
+            <button id="stopAudio" class="btn" disabled>Stop</button>
+            <button id="clearTranscription" class="btn btn-secondary">Clear</button>
+        </div>
+        
+        <div class="settings">
+            <div class="setting-group">
+                <label for="modelSelect">Whisper Model:</label>
+                <select id="modelSelect">
+                    <option value="Xenova/whisper-tiny.en">Tiny (Faster)</option>
+                    <option value="Xenova/whisper-small.en" selected>Small (Balanced)</option>
+                    <option value="Xenova/whisper-base.en">Base (More Accurate)</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <input type="checkbox" id="filterNonSpeech">
+                <label for="filterNonSpeech">Hide music and sound effects (for display only)</label>
+            </div>
+        </div>
+        
+        <div class="transcription-container">
+            <h2>Transcription</h2>
+            <textarea id="transcription" readonly></textarea>
+            <div class="transcription-mode">
+                <span id="transcription-mode-indicator">Showing: Raw Transcription</span>
+            </div>
+        </div>
+
+        <div class="status">
+            <p id="status-message">Ready to transcribe.</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
