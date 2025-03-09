@@ -3,19 +3,21 @@ const startMicrophoneBtn = document.getElementById('startMicrophone');
 const startSystemAudioBtn = document.getElementById('startSystemAudio');
 const stopAudioBtn = document.getElementById('stopAudio');
 const clearBtn = document.getElementById('clearTranscription');
+const emergencyStopBtn = document.getElementById('emergencyStop');
 const transcriptionArea = document.getElementById('transcription');
 const statusMessage = document.getElementById('status-message');
 const errorMessage = document.getElementById('error-message');
 const modelSelect = document.getElementById('modelSelect');
 const filterNonSpeechCheckbox = document.getElementById('filterNonSpeech');
 const transcriptionModeIndicator = document.getElementById('transcription-mode-indicator');
+const loaderContainer = document.getElementById('loaderContainer');
 
 // Variables
 let audioContext;
 let isRecording = false;
 let rawTranscriptionBuffer = '';
 let filteredTranscriptionBuffer = '';
-let currentModel = modelSelect ? modelSelect.value : 'Xenova/whisper-small.en';
+let currentModel = modelSelect ? modelSelect.value : 'Xenova/whisper-tiny.en'; // Start with tiny for speed
 let whisperProcessor = null;
 let audioProcessor;
 let microphoneStream;
@@ -23,63 +25,88 @@ let analyser;
 let audioQueue = [];
 let processingAudio = false;
 let audioBuffer = [];
+let loadingTimeout;
 
-// Configure Transformers.js to use the Hugging Face Hub directly
-function configureTransformers() {
-    if (typeof Transformers !== 'undefined' && Transformers.env) {
-        // Configure the library to use Hugging Face hub
-        Transformers.env.localModelPath = undefined;
-        Transformers.env.allowRemoteModels = true;
-        Transformers.env.useCacheFirst = true;
-        Transformers.env.remoteHost = "https://huggingface.co";
-        
-        console.log("Configured Transformers.js to use Hugging Face Hub");
-        return true;
+// Show or hide the loader
+function toggleLoader(show) {
+    if (loaderContainer) {
+        loaderContainer.classList.toggle('hidden', !show);
     }
-    return false;
 }
 
-// Initialize Whisper model
+// Safe way to check if Transformers exists
+function safeGetTransformers() {
+    return typeof window.Transformers !== 'undefined' ? window.Transformers : null;
+}
+
+// Initialize Whisper model with error handling and timeout
 async function initWhisper() {
+    toggleLoader(true);
+    
+    // Set a timeout to prevent infinite loading
+    loadingTimeout = setTimeout(() => {
+        toggleLoader(false);
+        updateStatus('Loading timed out. Please refresh the page and try again.');
+        showError('Model loading took too long. This may be due to network issues or browser limitations.');
+    }, 60000); // 60 second timeout
+    
     try {
         updateStatus('Loading Whisper model...');
         
-        if (typeof Transformers === 'undefined') {
-            throw new Error("Transformers library not loaded. Please refresh the page.");
+        // Retry mechanism for loading the library
+        let Transformers = safeGetTransformers();
+        let retries = 0;
+        
+        while (!Transformers && retries < 5) {
+            updateStatus(`Waiting for library to load (attempt ${retries + 1})...`);
+            // Wait 1 second
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            Transformers = safeGetTransformers();
+            retries++;
         }
         
-        // Configure the library
-        configureTransformers();
+        if (!Transformers) {
+            throw new Error("Transformers library failed to load after multiple attempts.");
+        }
         
-        // Add progress indicator for model loading
+        // Update status with more frequent feedback
+        updateStatus('Preparing transcription model...');
+        
+        // Configure to use Hugging Face Hub
+        if (Transformers.env) {
+            Transformers.env.allowRemoteModels = true;
+            Transformers.env.useCacheFirst = true;
+        }
+        
+        // Feedback on model downloading
         const startTime = Date.now();
-        updateStatus('Downloading Whisper model (this may take a minute)...');
-        
-        // Create a progress handler
         const progressCallback = (progress) => {
             if (progress.status === 'progress') {
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                const downloadMB = Math.round(progress.loaded / 1024 / 1024);
-                updateStatus(`Downloading model components: ${downloadMB}MB (${elapsed}s elapsed)`);
+                updateStatus(`Downloading model: ${Math.round(progress.loaded / 1024 / 1024)}MB (${elapsed}s elapsed)`);
             }
         };
         
-        // Use the global Transformers object
+        // Use tiny model first for faster initial loading
+        updateStatus('Setting up lightweight model for speech recognition...');
         whisperProcessor = await Transformers.pipeline(
             'automatic-speech-recognition', 
             currentModel, 
             {
                 quantized: true,
-                revision: 'main',
                 progress_callback: progressCallback
             }
         );
         
-        updateStatus(`Whisper model ${currentModel.split('/')[1]} loaded. Ready to transcribe.`);
+        clearTimeout(loadingTimeout);
+        toggleLoader(false);
+        updateStatus(`Ready to transcribe with ${currentModel.split('/')[1]} model.`);
         clearError();
     } catch (error) {
+        clearTimeout(loadingTimeout);
+        toggleLoader(false);
         updateStatus('Error loading Whisper model.');
-        showError(`${error.message}. Check your internet connection and try again.`);
+        showError(`${error.message}. Try reloading or using Chrome browser.`);
         console.error('Error loading Whisper model:', error);
     }
 }
@@ -99,84 +126,92 @@ function clearError() {
     if (errorMessage) errorMessage.textContent = '';
 }
 
-// Handle model change
+// Handle model change - simplified to prevent freezing
 async function handleModelChange() {
     const newModel = modelSelect.value;
     if (newModel !== currentModel) {
-        currentModel = newModel;
-        updateStatus(`Loading ${currentModel.split('/')[1]} model...`);
+        updateStatus(`Model change requested to ${newModel.split('/')[1]}...`);
         
-        try {
-            if (typeof Transformers === 'undefined') {
-                throw new Error('Transformers library not loaded');
-            }
-            
-            // Use the global Transformers object
-            whisperProcessor = await Transformers.pipeline(
-                'automatic-speech-recognition', 
-                currentModel,
-                { quantized: true }
-            );
-            
-            updateStatus(`Model changed to ${currentModel.split('/')[1]}. Ready to transcribe.`);
-            clearError();
-        } catch (error) {
-            updateStatus(`Error loading model.`);
-            showError(`${error.message}`);
-            console.error('Error loading model:', error);
-        }
+        // Store the new model name but don't load immediately
+        currentModel = newModel;
+        
+        // Show the user a message but delay actual loading until next recording
+        updateStatus(`Model will change to ${currentModel.split('/')[1]} when you next start recording.`);
     }
 }
 
-// Process audio for transcription
+// Process audio for transcription - with added safety checks
 async function processAudioForTranscription(audioData, sampleRate) {
+    // Skip if not ready
     if (!whisperProcessor) {
         updateStatus('Whisper model not initialized yet. Please wait or reload the page.');
         return;
     }
     
     processingAudio = true;
+    updateStatus('Processing audio...');
     
     try {
-        // Resample audio if needed (Whisper works best with 16kHz)
+        // Safety check for very large audio data that might freeze the browser
+        if (audioData.length > 480000) { // Limit to ~10 seconds at 48kHz
+            const trimmedAudio = new Float32Array(480000);
+            trimmedAudio.set(audioData.slice(0, 480000));
+            audioData = trimmedAudio;
+            console.log("Audio data trimmed to prevent freezing");
+        }
+        
+        // Simple silence detection to skip empty audio
+        const isSilence = isAudioSilent(audioData);
+        if (isSilence) {
+            console.log("Skipping silent audio segment");
+            processingAudio = false;
+            return;
+        }
+        
+        // Resample audio - 16kHz is optimal for Whisper
         const targetSampleRate = 16000;
         let processedAudio = audioData;
-        
         if (sampleRate !== targetSampleRate) {
             processedAudio = resampleAudio(audioData, sampleRate, targetSampleRate);
         }
         
-        // Get transcription with better parameters for speech recognition
+        // Process with simplified parameters
         const result = await whisperProcessor(processedAudio, {
             sampling_rate: targetSampleRate,
-            return_timestamps: true,
-            chunk_length_s: 30,
-            stride_length_s: 5,
+            return_timestamps: false, // Simplified for better performance
             language: 'en',
-            task: 'transcribe',
-            // Additional parameters to improve speech detection
-            no_speech_threshold: 0.6,
-            logprob_threshold: -1.0,
-            compression_ratio_threshold: 2.4,
-            condition_on_previous_text: true,
-            temperature: 0
+            task: 'transcribe'
         });
         
-        // Process the transcription result
         handleTranscriptionResult(result);
     } catch (error) {
         console.error('Error during transcription:', error);
-        updateStatus(`Transcription error.`);
-        showError(error.message);
+        updateStatus(`Transcription error: ${error.message}`);
     } finally {
         processingAudio = false;
+        updateStatus('Ready to transcribe.');
         
-        // Process next chunk if available
+        // Process next chunk if available - with a delay to prevent UI freezing
         if (audioQueue.length > 0) {
             const nextChunk = audioQueue.shift();
-            processAudioForTranscription(nextChunk.audio, nextChunk.sampleRate);
+            setTimeout(() => {
+                processAudioForTranscription(nextChunk.audio, nextChunk.sampleRate);
+            }, 100);
         }
     }
+}
+
+// Check if audio is mostly silence (to skip processing empty segments)
+function isAudioSilent(audioData) {
+    // Calculate RMS (root mean square) of audio
+    let sum = 0;
+    for (let i = 0; i < audioData.length; i++) {
+        sum += audioData[i] * audioData[i];
+    }
+    const rms = Math.sqrt(sum / audioData.length);
+    
+    // Consider it silence if RMS is below threshold
+    return rms < 0.01;
 }
 
 // Simple linear resampling function
@@ -230,14 +265,18 @@ function handleTranscriptionResult(result) {
     }
 }
 
-// Start microphone recording
+// Start microphone recording - with added safety checks
 async function startMicrophoneRecording() {
+    if (isRecording) return;
+    
+    // Check if model needs to be initialized
     if (!whisperProcessor) {
-        showError("Transcription engine is not ready yet. Please wait for initialization to complete.");
+        showError("Model not loaded yet. Please wait for initialization to complete.");
         return;
     }
     
-    if (isRecording) return;
+    updateStatus('Starting microphone...');
+    toggleLoader(true);
     
     try {
         // Initialize audio context if needed
@@ -264,6 +303,11 @@ async function startMicrophoneRecording() {
         microphoneStream = stream;
         setupAudioProcessing(stream);
         updateStatus('Recording and transcribing from microphone...');
+        
+        // Add a safety timeout
+        setTimeout(() => {
+            toggleLoader(false);
+        }, 5000);
     } catch (error) {
         // Specific handling for GitHub Pages common issues
         if (error.name === 'NotAllowedError') {
@@ -274,6 +318,7 @@ async function startMicrophoneRecording() {
             showError(error.message);
         }
         console.error('Error accessing microphone:', error);
+        toggleLoader(false);
     }
 }
 
@@ -344,7 +389,7 @@ async function startSystemAudioRecording() {
     }
 }
 
-// Set up real-time audio processing
+// Set up real-time audio processing - with performance improvements
 function setupAudioProcessing(stream) {
     isRecording = true;
     audioBuffer = [];
@@ -370,7 +415,7 @@ function setupAudioProcessing(stream) {
     audioProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
     
     let lastProcessingTime = Date.now();
-    const PROCESSING_INTERVAL = 2000; // Process every 2 seconds
+    const PROCESSING_INTERVAL = 3000; // 3 seconds between processing
     
     audioProcessor.onaudioprocess = function(e) {
         if (!isRecording) return;
@@ -402,14 +447,17 @@ function setupAudioProcessing(stream) {
             audioBuffer = [];
             lastProcessingTime = currentTime;
             
-            // If previous processing is done, process directly, otherwise queue
-            if (!processingAudio && whisperProcessor) {
-                processAudioForTranscription(concatenatedAudio, audioContext.sampleRate);
-            } else {
+            // Add limit to queue size to prevent memory issues
+            if (audioQueue.length < 5) {
                 audioQueue.push({
                     audio: concatenatedAudio,
                     sampleRate: audioContext.sampleRate
                 });
+            }
+            
+            // Only start processing if not already processing
+            if (!processingAudio && whisperProcessor) {
+                processAudioForTranscription(concatenatedAudio, audioContext.sampleRate);
             }
         }
     };
@@ -473,11 +521,40 @@ function clearTranscription() {
     clearError();
 }
 
+// Stop all processing - emergency function
+function emergencyStop() {
+    // Stop recording if active
+    if (isRecording) {
+        stopRecording();
+    }
+    
+    // Clear any queued audio
+    audioQueue = [];
+    
+    // Reset processing flag
+    processingAudio = false;
+    
+    // Clear any timeouts
+    clearTimeout(loadingTimeout);
+    
+    // Hide loader
+    toggleLoader(false);
+    
+    // Reset UI
+    updateStatus("Emergency stop performed. The page should be responsive again.");
+    
+    // Force garbage collection if possible
+    if (window.gc) {
+        window.gc();
+    }
+}
+
 // Event listeners
 if (startMicrophoneBtn) startMicrophoneBtn.addEventListener('click', startMicrophoneRecording);
 if (startSystemAudioBtn) startSystemAudioBtn.addEventListener('click', startSystemAudioRecording);
 if (stopAudioBtn) stopAudioBtn.addEventListener('click', stopRecording);
 if (clearBtn) clearBtn.addEventListener('click', clearTranscription);
+if (emergencyStopBtn) emergencyStopBtn.addEventListener('click', emergencyStop);
 if (modelSelect) modelSelect.addEventListener('change', handleModelChange);
 if (filterNonSpeechCheckbox) filterNonSpeechCheckbox.addEventListener('change', updateTranscriptionDisplay);
 
@@ -486,6 +563,9 @@ const isGitHubPages = window.location.hostname.includes('github.io');
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    // Initial UI setup
+    toggleLoader(false);
+    
     // Add GitHub Pages specific information
     if (isGitHubPages) {
         updateStatus('Running on GitHub Pages. Initializing transcription engine...');

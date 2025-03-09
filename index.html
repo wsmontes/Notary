@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    
-    <!-- Load the Transformers library directly with a specific version -->
-    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+    <!-- IMPORTANT: Remove the problematic script tag -->
 </head>
 <body>
     <div class="container">
@@ -18,6 +16,12 @@
             <button id="startSystemAudio" class="btn">Start System Audio</button>
             <button id="stopAudio" class="btn" disabled>Stop</button>
             <button id="clearTranscription" class="btn btn-secondary">Clear</button>
+            <button id="emergencyStop" class="btn btn-emergency">Emergency Stop</button>
+        </div>
+        
+        <div class="loader-container" id="loaderContainer">
+            <div class="loader"></div>
+            <p>Loading model, please wait...</p>
         </div>
         
         <div class="settings">
@@ -52,7 +56,8 @@
         </div>
     </div>
 
-    <!-- Load our application script as a regular script, not a module -->
-    <script src="script.js"></script>
+    <!-- Load with defer to ensure it loads after the page but before execution -->
+    <script src="https://unpkg.com/@xenova/transformers@2.5.0" defer></script>
+    <script src="script.js" defer></script>
 </body>
 </html>

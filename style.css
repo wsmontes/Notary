@@ -56,6 +56,14 @@ h1 {
     background-color: #d32f2f;
 }
 
+.btn-emergency {
+    background-color: #ff9800;
+}
+
+.btn-emergency:hover {
+    background-color: #e65100;
+}
+
 .settings {
     margin: 20px 0;
     padding: 15px;
@@ -126,4 +134,35 @@ textarea#transcription {
     color: #d32f2f;
     font-weight: bold;
     margin-top: 10px;
+}
+
+.loader-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 20px 0;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 5px;
+    text-align: center;
+}
+
+.loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #4CAF50;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.hidden {
+    display: none;
 }
