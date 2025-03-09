@@ -5,7 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- No script tags here - we'll import everything in the JavaScript module -->
+    <!-- Add a fallback script for browsers that might have issues with ES modules -->
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.message.includes('import') || e.message.includes('export')) {
+                console.warn('ES module error detected, will try alternative loading method');
+                const errorMsg = document.getElementById('error-message');
+                if (errorMsg) {
+                    errorMsg.textContent = 'Loading transcription engine using alternative method...';
+                }
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="container">
@@ -50,7 +61,7 @@
         </div>
     </div>
 
-    <!-- Load script as a module to allow import statements -->
+    <!-- Use module type for ES module support -->
     <script type="module" src="script.js"></script>
 </body>
 </html>

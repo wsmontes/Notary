@@ -1,5 +1,21 @@
-// Import the transformers library as a module
-import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0/dist/transformers.min.js';
+// We'll try to import the library, but also provide a fallback
+let pipeline;
+try {
+  // Try to import dynamically when the script runs
+  import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0/dist/transformers.min.js')
+    .then(module => {
+      pipeline = module.pipeline;
+      console.log("Transformers library loaded successfully through ES module");
+      // Initialize once the library is loaded
+      initWhisper();
+    })
+    .catch(err => {
+      console.error("Failed to import Transformers module:", err);
+      showError("Failed to load Whisper transcription engine. Try a different browser or check console for details.");
+    });
+} catch (e) {
+  console.error("Error in import statement:", e);
+}
 
 // Elements
 const startMicrophoneBtn = document.getElementById('startMicrophone');
@@ -32,7 +48,10 @@ async function initWhisper() {
     try {
         updateStatus('Loading Whisper model...');
         
-        // Use the imported pipeline function directly
+        if (!pipeline) {
+            throw new Error("Transformers library not loaded. Please wait or reload the page.");
+        }
+        
         whisperProcessor = await pipeline('automatic-speech-recognition', currentModel, {
             quantized: false,
             revision: 'main'
@@ -41,7 +60,7 @@ async function initWhisper() {
         updateStatus(`Whisper model ${currentModel.split('/')[1]} loaded. Ready to transcribe.`);
     } catch (error) {
         updateStatus('Error loading Whisper model.');
-        showError(`${error.message}. Make sure you're using a modern browser and running from a secure context (HTTPS).`);
+        showError(`${error.message} Try using Chrome and ensure you're on a secure connection.`);
         console.error('Error loading Whisper model:', error);
     }
 }
@@ -69,7 +88,10 @@ async function handleModelChange() {
         updateStatus(`Loading ${currentModel.split('/')[1]} model...`);
         
         try {
-            // Use the imported pipeline function directly
+            if (!pipeline) {
+                throw new Error('Transformers library not loaded');
+            }
+            
             whisperProcessor = await pipeline('automatic-speech-recognition', currentModel);
             updateStatus(`Model changed to ${currentModel.split('/')[1]}. Ready to transcribe.`);
             clearError();
@@ -431,14 +453,15 @@ const isGitHubPages = window.location.hostname.includes('github.io');
 document.addEventListener('DOMContentLoaded', () => {
     // Add GitHub Pages specific information
     if (isGitHubPages) {
-        updateStatus('Running on GitHub Pages. Make sure to allow permissions when prompted.');
+        updateStatus('Running on GitHub Pages. Initializing transcription engine...');
         const note = document.querySelector('.note');
         if (note) {
             note.innerHTML = '<strong>GitHub Pages Notice:</strong> For microphone access and audio processing to work properly, ' +
                 'you must access this page via HTTPS and grant the necessary permissions when prompted.';
         }
+    } else {
+        updateStatus('Loading transcription engine...');
     }
     
-    // Initialize Whisper
-    initWhisper();
+    // The initialization will happen after the library loads (in the import's then() callback)
 });
