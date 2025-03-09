@@ -166,3 +166,20 @@ textarea#transcription {
 .hidden {
     display: none;
 }
+
+.storage-warning {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #ffecb3;
+    border-left: 4px solid #ff9800;
+    color: #663c00;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 12px;
+    margin-left: 10px;
+}

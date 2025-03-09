@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- IMPORTANT: Remove the problematic script tag -->
+    
+    <!-- Use a more compatible approach to loading the libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0/dist/transformers.min.js"></script>
+    
+    <!-- Explicitly load the ONNX runtime which transformers depends on -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -50,14 +55,18 @@
             </div>
         </div>
 
+        <div class="storage-warning hidden" id="storageWarning">
+            <strong>Warning:</strong> Your browser has limited storage. Models are large and may fail to load.
+            <button id="dismissWarning" class="btn btn-small">Dismiss</button>
+        </div>
+
         <div class="status">
             <p id="status-message">Ready to transcribe.</p>
             <p id="error-message" class="error-message"></p>
         </div>
     </div>
 
-    <!-- Load with defer to ensure it loads after the page but before execution -->
-    <script src="https://unpkg.com/@xenova/transformers@2.5.0" defer></script>
-    <script src="script.js" defer></script>
+    <!-- Load our script at the end, after all libraries are loaded -->
+    <script src="script.js"></script>
 </body>
 </html>

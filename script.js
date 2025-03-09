@@ -11,13 +11,15 @@ const modelSelect = document.getElementById('modelSelect');
 const filterNonSpeechCheckbox = document.getElementById('filterNonSpeech');
 const transcriptionModeIndicator = document.getElementById('transcription-mode-indicator');
 const loaderContainer = document.getElementById('loaderContainer');
+const storageWarning = document.getElementById('storageWarning');
+const dismissWarningBtn = document.getElementById('dismissWarning');
 
 // Variables
 let audioContext;
 let isRecording = false;
 let rawTranscriptionBuffer = '';
 let filteredTranscriptionBuffer = '';
-let currentModel = modelSelect ? modelSelect.value : 'Xenova/whisper-tiny.en'; // Start with tiny for speed
+let currentModel = 'Xenova/whisper-tiny.en'; // Always start with tiny for compatibility
 let whisperProcessor = null;
 let audioProcessor;
 let microphoneStream;
@@ -31,6 +33,26 @@ let loadingTimeout;
 function toggleLoader(show) {
     if (loaderContainer) {
         loaderContainer.classList.toggle('hidden', !show);
+    }
+}
+
+// Check for storage limitations
+function checkStorage() {
+    if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(estimate => {
+            const availableMB = Math.round((estimate.quota - estimate.usage) / (1024 * 1024));
+            if (availableMB < 200) {
+                // Show warning if less than 200MB available
+                showStorageWarning();
+            }
+        });
+    }
+}
+
+// Show storage warning
+function showStorageWarning() {
+    if (storageWarning) {
+        storageWarning.classList.remove('hidden');
     }
 }
 
@@ -589,6 +611,16 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatus("Error: Transcription engine unavailable");
         }
     }, 1000);
+
+    // Check storage
+    checkStorage();
+    
+    // Add event listener for dismiss warning button
+    if (dismissWarningBtn) {
+        dismissWarningBtn.addEventListener('click', () => {
+            storageWarning.classList.add('hidden');
+        });
+    }
 });
 
 // Note: The ONNX warnings you're seeing about "Removing initializer" are normal 
