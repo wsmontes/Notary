@@ -41,6 +41,7 @@ async function initWhisper() {
             throw new Error('Transformers library not loaded. This may happen if GitHub Pages is blocking the script. Try using Chrome and ensure you\'re accessing via HTTPS.');
         }
         
+        // Access the pipeline function from the global Transformers object
         const { pipeline } = window.Transformers;
         
         whisperProcessor = await pipeline('automatic-speech-recognition', currentModel, {
