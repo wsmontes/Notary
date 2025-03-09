@@ -6,29 +6,8 @@
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- Load the Transformers library directly in the page -->
-    <script src="https://unpkg.com/@xenova/transformers"></script>
-    
-    <script>
-        // Define a global variable to track loading status
-        window.TRANSFORMERS_LOADING_STATUS = {
-            loaded: false,
-            error: null
-        };
-        
-        // Check if the library loaded correctly
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                if (typeof Transformers !== 'undefined') {
-                    console.log("Transformers library loaded successfully via script tag");
-                    window.TRANSFORMERS_LOADING_STATUS.loaded = true;
-                } else {
-                    console.error("Transformers library not available after loading attempt");
-                    window.TRANSFORMERS_LOADING_STATUS.error = "Library not found after load";
-                }
-            }, 1000);
-        });
-    </script>
+    <!-- Load the Transformers library directly with a specific version -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
 </head>
 <body>
     <div class="container">

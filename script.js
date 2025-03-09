@@ -45,15 +45,16 @@ let audioBuffer = [];
 let transformersLoaded = false;
 let transformersPipeline = null;
 
-// Configure Transformers.js to use the proper model repository
+// Configure Transformers.js to use the Hugging Face Hub directly
 function configureTransformers() {
     if (typeof Transformers !== 'undefined' && Transformers.env) {
-        // Set the base URL for model loading
-        Transformers.env.localModelPath = undefined; // Don't try to load locally
-        Transformers.env.allowRemoteModels = true;   // Allow remote model loading
-        Transformers.env.useCacheFirst = false;      // Don't prioritize potentially missing files
+        // Configure the library to use Hugging Face hub
+        Transformers.env.localModelPath = undefined;
+        Transformers.env.allowRemoteModels = true;
+        Transformers.env.useCacheFirst = true;
+        Transformers.env.remoteHost = "https://huggingface.co";
         
-        console.log("Configured Transformers.js for remote model loading");
+        console.log("Configured Transformers.js to use Hugging Face Hub");
         return true;
     }
     return false;
@@ -549,21 +550,29 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('Running on GitHub Pages. Initializing transcription engine...');
         const note = document.querySelector('.note');
         if (note) {
-            note.innerHTML = '<strong>GitHub Pages Notice:</strong> First-time use requires downloading the model files (~150MB). ' +
-                'Please be patient during the initial setup.';
+            note.innerHTML = '<strong>GitHub Pages Notice:</strong> First-time use requires downloading the model files (~85MB). ' +
+                'Please be patient during the initial setup. This process may take several minutes.';
         }
     } else {
         updateStatus('Loading transcription engine...');
     }
     
-    // Remove the ES module import approach
-    if (typeof Transformers !== 'undefined') {
-        transformersLoaded = true;
-        transformersPipeline = Transformers.pipeline;
-        configureTransformers();
-        setTimeout(initWhisper, 500); // Small delay to ensure DOM is ready
-    } else {
-        // Fall back to checking transformers availability
-        setTimeout(checkTransformers, 1000);
-    }
+    // IMPORTANT: Remove all dynamic ES module imports
+    // Only use the global Transformers object loaded from the script tag
+    
+    // Wait a bit to make sure the library is loaded
+    setTimeout(() => {
+        if (typeof Transformers !== 'undefined') {
+            console.log("Transformers library detected. Initializing whisper...");
+            initWhisper();
+        } else {
+            console.error("Transformers library not available after waiting");
+            showError("Failed to load speech recognition library. Please try using Chrome and refreshing the page.");
+            updateStatus("Error: Transcription engine unavailable");
+        }
+    }, 1500);
 });
+
+// The ONNX warnings about "Removing initializer" are normal - they are just
+// the model optimizer cleaning up unused parts of the neural network and
+// can be safely ignored.
