@@ -26,12 +26,23 @@ let analyser;
 let audioQueue = [];
 let processingAudio = false;
 let audioBuffer = [];
-let audioWorkletSupported = false;
+
+// Check if transformers library is available
+function isTransformersAvailable() {
+    return typeof window.Transformers !== 'undefined';
+}
 
 // Initialize Whisper model
 async function initWhisper() {
     try {
         updateStatus('Loading Whisper model...');
+        
+        if (!isTransformersAvailable()) {
+            throw new Error('Transformers library not loaded. Try a different browser or check your internet connection.');
+        }
+        
+        // Use the UMD version of transformers library
+        const { pipeline } = window.Transformers;
         
         whisperProcessor = await pipeline('automatic-speech-recognition', currentModel, {
             quantized: false,
@@ -69,6 +80,13 @@ async function handleModelChange() {
         updateStatus(`Loading ${currentModel.split('/')[1]} model...`);
         
         try {
+            if (!isTransformersAvailable()) {
+                throw new Error('Transformers library not loaded');
+            }
+            
+            // Use the UMD version of transformers library
+            const { pipeline } = window.Transformers;
+            
             whisperProcessor = await pipeline('automatic-speech-recognition', currentModel);
             updateStatus(`Model changed to ${currentModel.split('/')[1]}. Ready to transcribe.`);
             clearError();
@@ -407,5 +425,19 @@ clearBtn.addEventListener('click', clearTranscription);
 modelSelect.addEventListener('change', handleModelChange);
 filterNonSpeechCheckbox.addEventListener('change', updateTranscriptionDisplay);
 
-// Initialize the app
-document.addEventListener('DOMContentLoaded', initWhisper);
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    // Make sure any existing whisper-worker.js file is not being referenced
+    if (window.Worker) {
+        // Reset any existing workers that might be causing errors
+        const workers = window.performance.getEntriesByType('resource')
+            .filter(resource => resource.name.includes('whisper-worker.js'));
+        
+        if (workers.length > 0) {
+            console.warn('Found references to whisper-worker.js. This file should be deleted.');
+        }
+    }
+    
+    // Initialize Whisper
+    initWhisper();
+});

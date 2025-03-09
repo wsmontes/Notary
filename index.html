@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Load transformers library as a module to fix the export error -->
-    <script type="module">
-        import 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0/dist/transformers.min.js';
-        window.isTransformersLoaded = true;
-    </script>
+    <!-- Load transformers in UMD format instead of as a module -->
+    <script src="https://unpkg.com/@xenova/transformers"></script>
 </head>
 <body>
     <div class="container">
@@ -54,6 +51,7 @@
         </div>
     </div>
 
-    <script src="script.js" type="module"></script>
+    <!-- Use regular script, not module -->
+    <script src="script.js"></script>
 </body>
 </html>
