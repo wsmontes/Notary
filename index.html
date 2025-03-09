@@ -5,16 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Audio Transcription</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Add a fallback script for browsers that might have issues with ES modules -->
+    
+    <!-- Load the Transformers library directly in the page -->
+    <script src="https://unpkg.com/@xenova/transformers"></script>
+    
     <script>
-        window.addEventListener('error', function(e) {
-            if (e.message.includes('import') || e.message.includes('export')) {
-                console.warn('ES module error detected, will try alternative loading method');
-                const errorMsg = document.getElementById('error-message');
-                if (errorMsg) {
-                    errorMsg.textContent = 'Loading transcription engine using alternative method...';
+        // Define a global variable to track loading status
+        window.TRANSFORMERS_LOADING_STATUS = {
+            loaded: false,
+            error: null
+        };
+        
+        // Check if the library loaded correctly
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (typeof Transformers !== 'undefined') {
+                    console.log("Transformers library loaded successfully via script tag");
+                    window.TRANSFORMERS_LOADING_STATUS.loaded = true;
+                } else {
+                    console.error("Transformers library not available after loading attempt");
+                    window.TRANSFORMERS_LOADING_STATUS.error = "Library not found after load";
                 }
-            }
+            }, 1000);
         });
     </script>
 </head>
@@ -61,7 +73,7 @@
         </div>
     </div>
 
-    <!-- Use module type for ES module support -->
-    <script type="module" src="script.js"></script>
+    <!-- Load our application script as a regular script, not a module -->
+    <script src="script.js"></script>
 </body>
 </html>

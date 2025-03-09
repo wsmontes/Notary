@@ -42,17 +42,65 @@ let analyser;
 let audioQueue = [];
 let processingAudio = false;
 let audioBuffer = [];
+let transformersLoaded = false;
+let transformersPipeline = null;
+
+// Check for Transformers availability and set up pipeline
+function checkTransformers() {
+    updateStatus('Initializing transcription engine...');
+    
+    // Check if Transformers is available globally (from script tag)
+    if (typeof Transformers !== 'undefined') {
+        console.log("Using globally loaded Transformers library");
+        transformersLoaded = true;
+        transformersPipeline = Transformers.pipeline;
+        initWhisper();
+        return;
+    }
+    
+    console.log("Transformers not available yet, will retry...");
+    
+    // If not immediately available, check again in a moment
+    setTimeout(function() {
+        if (typeof Transformers !== 'undefined') {
+            console.log("Transformers found on retry");
+            transformersLoaded = true;
+            transformersPipeline = Transformers.pipeline;
+            initWhisper();
+        } else {
+            // Final fallback - try to load it one more time with a different CDN
+            const script = document.createElement('script');
+            script.src = "https://cdn.jsdelivr.net/npm/@xenova/transformers@latest/dist/transformers.min.js";
+            script.onload = function() {
+                if (typeof Transformers !== 'undefined') {
+                    console.log("Transformers loaded via fallback script");
+                    transformersLoaded = true;
+                    transformersPipeline = Transformers.pipeline;
+                    initWhisper();
+                } else {
+                    showError("Failed to load transcription engine. Please try a different browser (Chrome recommended) or check your internet connection.");
+                    updateStatus("Error: Transcription engine not available");
+                }
+            };
+            script.onerror = function() {
+                showError("Failed to load transcription library. Please check your internet connection and try again.");
+                updateStatus("Error: Unable to load required resources");
+            };
+            document.head.appendChild(script);
+        }
+    }, 2000);
+}
 
 // Initialize Whisper model using the imported pipeline
 async function initWhisper() {
     try {
         updateStatus('Loading Whisper model...');
         
-        if (!pipeline) {
+        if (!transformersLoaded || !transformersPipeline) {
             throw new Error("Transformers library not loaded. Please wait or reload the page.");
         }
         
-        whisperProcessor = await pipeline('automatic-speech-recognition', currentModel, {
+        whisperProcessor = await transformersPipeline('automatic-speech-recognition', currentModel, {
             quantized: false,
             revision: 'main'
         });
@@ -88,11 +136,11 @@ async function handleModelChange() {
         updateStatus(`Loading ${currentModel.split('/')[1]} model...`);
         
         try {
-            if (!pipeline) {
+            if (!transformersLoaded || !transformersPipeline) {
                 throw new Error('Transformers library not loaded');
             }
             
-            whisperProcessor = await pipeline('automatic-speech-recognition', currentModel);
+            whisperProcessor = await transformersPipeline('automatic-speech-recognition', currentModel);
             updateStatus(`Model changed to ${currentModel.split('/')[1]}. Ready to transcribe.`);
             clearError();
         } catch (error) {
@@ -207,6 +255,11 @@ function handleTranscriptionResult(result) {
 
 // Start microphone recording
 async function startMicrophoneRecording() {
+    if (!transformersLoaded || !whisperProcessor) {
+        showError("Transcription engine is not ready yet. Please wait for initialization to complete.");
+        return;
+    }
+    
     if (isRecording) return;
     
     try {
@@ -249,6 +302,11 @@ async function startMicrophoneRecording() {
 
 // Start system audio recording (when supported)
 async function startSystemAudioRecording() {
+    if (!transformersLoaded || !whisperProcessor) {
+        showError("Transcription engine is not ready yet. Please wait for initialization to complete.");
+        return;
+    }
+    
     if (isRecording) return;
     
     try {
